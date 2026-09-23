@@ -103,6 +103,23 @@ async function boot(){
   }
 
   try{
+    const mr=await fetch("data/morphology_qac_v04.json",{cache:"no-store"});
+    if(!mr.ok) throw new Error("morphology HTTP "+mr.status);
+    morphology=await mr.json();
+    if(!Array.isArray(morphology.segments) || morphology.segments.length<120000) throw new Error("morphology dataset incomplete");
+    morphByVerse.clear();
+    morphology.segments.forEach(x=>{
+      const k=x.s+":"+x.a;
+      if(!morphByVerse.has(k)) morphByVerse.set(k,[]);
+      morphByVerse.get(k).push(x);
+    });
+  }catch(e){
+    morphology=null;
+    morphByVerse.clear();
+    console.error("QuranLens morphology load failed:",e);
+  }
+
+  try{
     const r=await fetch("data/translation_en_pickthall.json",{cache:"no-store"}); translations=await r.json();
     if(!Array.isArray(translations.verses) || translations.verses.length!==6236) throw new Error("translation count");
     translations.verses.forEach(v=>transMap.set(`${v.surah}:${v.ayah}`,v.text));
