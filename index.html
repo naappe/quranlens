@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>QuranLens v0.4 — Evidence Path</title>
+<title>QuranLens v0.5 — Linguistic Evidence Engine</title>
 <style>
 :root{--bg:#0b0f14;--panel:#111821;--panel2:#0d141c;--text:#eef4f8;--muted:#95a7b8;--line:#263646;--accent:#d2b36c;--good:#77c59b;--bad:#df7d7d}
 *{box-sizing:border-box}
@@ -34,7 +34,7 @@ button{border:0;cursor:pointer}.primary{background:var(--accent);font-weight:700
 <body>
 <div class="shell">
   <div class="top">
-    <div><h1>QuranLens <span style="color:var(--accent)">v0.4</span></h1><div class="muted">Evidence Path · contextual verse linking · Qur’anic Arabic typography</div></div>
+    <div><h1>QuranLens <span style="color:var(--accent)">v0.5</span></h1><div class="muted">Linguistic Evidence Engine · context · lemma/root · traceable evidence</div></div>
     <div id="badge" class="badge">Corpus: checking…</div>
   </div>
 
@@ -73,7 +73,7 @@ button{border:0;cursor:pointer}.primary{background:var(--accent);font-weight:700
 </div>
 
 <script>
-let corpus=null, translations=null, rows=[], transMap=new Map();
+let corpus=null, translations=null, morphology=null, rows=[], transMap=new Map(), morphByVerse=new Map();
 
 function normArabic(s){
  return (s||"").normalize("NFKD")
@@ -147,19 +147,45 @@ function meaningfulTokens(text){
  const stop=new Set(["و","في","من","على","الى","إلى","عن","ما","لا","هو","هي","هم","كم","لكم","لهم","به","بها"]);
  return [...new Set(normArabic(text).split(/\\s+/).filter(x=>x.length>=3&&!stop.has(x)))];
 }
+function bwArabic(s){
+ const m={"'":"ء","|":"آ",">":"أ","&":"ؤ","<":"إ","}":"ئ","A":"ا","b":"ب","p":"ة","t":"ت","v":"ث","j":"ج","H":"ح","x":"خ","d":"د","*":"ذ","r":"ر","z":"ز","s":"س","$":"ش","S":"ص","D":"ض","T":"ط","Z":"ظ","E":"ع","g":"غ","f":"ف","q":"ق","k":"ك","l":"ل","m":"م","n":"ن","h":"ه","w":"و","Y":"ى","y":"ي"};
+ return (s||"").split("").map(ch=>m[ch]||"").join("");
+}
+function morphLinksForVerse(s,a){
+ const segs=morphByVerse.get(s+":"+a)||[], roots=new Map(), lemmas=new Map();
+ segs.forEach(x=>{if(x.root)roots.set(x.root,(roots.get(x.root)||0)+1);if(x.lemma)lemmas.set(x.lemma,(lemmas.get(x.lemma)||0)+1)});
+ return {segs,roots:[...roots.keys()],lemmas:[...lemmas.keys()]};
+}
+function countMorph(kind,val,s,a){
+ const verses=new Set();
+ morphology?.segments?.forEach(x=>{if(x[kind]===val && !(x.s===s&&x.a===a))verses.add(x.s+":"+x.a)});
+ return verses.size;
+}
 function buildEvidencePath(s,a){
  const focus=verseAt(s,a); if(!focus)return;
- const tokens=meaningfulTokens(focus.arabic);
- const links=[];
- for(const token of tokens){
-   const matches=rows.filter(v=>!(v.surah===s&&v.ayah===a)&&v._n.includes(token));
-   if(matches.length) links.push({token,matches:matches.slice(0,12),count:matches.length});
- }
  const box=document.getElementById("evidencePath");
- box.innerHTML=`<div class="path"><div class="path-title">Evidence Path from ${s}:${a}</div>
- <div class="muted">Connections below are generated only from repeated normalized Arabic surface forms. They are discovery links, not root/lemma claims and not conclusions.</div>
- <div class="path-row" style="margin-top:10px">${links.map(x=>`<span class="path-chip" onclick="showLinked('${x.token}',${s},${a})">${esc(x.token)} · ${x.count}</span>`).join("")}</div></div>`;
+ if(morphology && morphByVerse.size){
+   const m=morphLinksForVerse(s,a);
+   const roots=m.roots.map(x=>({v:x,n:countMorph("root",x,s,a)})).filter(x=>x.n);
+   const lemmas=m.lemmas.map(x=>({v:x,n:countMorph("lemma",x,s,a)})).filter(x=>x.n);
+   box.innerHTML=`<div class="path"><div class="path-title">Linguistic Evidence Path — ${s}:${a}</div>
+   <div class="muted">QAC v0.4 morphology is a separate annotation layer. ROOT and LEMMA links below are QAC annotations, not spelling guesses. Counts exclude the focus ayah.</div>
+   <div style="margin-top:12px"><b>ROOT</b><div class="path-row">${roots.map(x=>`<span class="path-chip" onclick="showMorphLinked('root','${x.v}',${s},${a})">${esc(bwArabic(x.v)||x.v)} · ${x.n}</span>`).join("")||'<span class="muted">No root links</span>'}</div></div>
+   <div style="margin-top:12px"><b>LEMMA</b><div class="path-row">${lemmas.map(x=>`<span class="path-chip" onclick="showMorphLinked('lemma','${x.v}',${s},${a})">${esc(bwArabic(x.v)||x.v)} · ${x.n}</span>`).join("")||'<span class="muted">No lemma links</span>'}</div></div>
+   <div class="muted" style="margin-top:12px">Next reasoning stages remain separate: CONTEXT → PARALLEL PASSAGE → COMPLETE EVIDENCE SET → SYNTHESIS.</div></div>`;
+ } else {
+   const tokens=meaningfulTokens(focus.arabic),links=[];
+   for(const token of tokens){const matches=rows.filter(v=>!(v.surah===s&&v.ayah===a)&&v._n.includes(token));if(matches.length)links.push({token,count:matches.length})}
+   box.innerHTML=`<div class="path"><div class="path-title">Evidence Path — morphology not installed</div><div class="muted">Surface-form discovery remains available, but QuranLens will not label spelling matches as roots or lemmas. Install the official QAC v0.4 morphology layer to enable linguistic links.</div><div class="path-row" style="margin-top:10px">${links.map(x=>`<span class="path-chip" onclick="showLinked('${x.token}',${s},${a})">${esc(x.token)} · ${x.count}</span>`).join("")}</div></div>`;
+ }
  box.scrollIntoView({behavior:"smooth",block:"center"});
+}
+function showMorphLinked(kind,val,s,a){
+ const keys=new Set();
+ morphology.segments.forEach(x=>{if(x[kind]===val && !(x.s===s&&x.a===a))keys.add(x.s+":"+x.a)});
+ const hits=rows.filter(v=>keys.has(v.surah+":"+v.ayah)),out=document.getElementById("results");out.innerHTML="";
+ document.getElementById("summary").textContent=`${kind.toUpperCase()} annotation “${bwArabic(val)||val}”: ${hits.length} related ayahs. Morphological relation is not by itself a semantic conclusion.`;
+ hits.slice(0,250).forEach(v=>out.appendChild(render(v,kind.toUpperCase())));
 }
 function showLinked(token,s,a){
  const hits=rows.filter(v=>!(v.surah===s&&v.ayah===a)&&v._n.includes(token));
