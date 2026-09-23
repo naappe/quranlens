@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>QuranLens v0.7 — Linguistic Evidence Engine</title>
+<title>QuranLens v0.7.1 — Linguistic Evidence Engine</title>
 <style>
 :root{--bg:#0b0f14;--panel:#111821;--panel2:#0d141c;--text:#eef4f8;--muted:#95a7b8;--line:#263646;--accent:#d2b36c;--good:#77c59b;--bad:#df7d7d}
 *{box-sizing:border-box}
@@ -35,7 +35,7 @@ button{border:0;cursor:pointer}.primary{background:var(--accent);font-weight:700
 <body>
 <div class="shell">
   <div class="top">
-    <div><h1>QuranLens <span style="color:var(--accent)">v0.7</span></h1><div class="muted">Whole-Qur’an Evidence Engine · morphology · Lisan ul Quran · traceable synthesis · web-ready</div></div>
+    <div><h1>QuranLens <span style="color:var(--accent)">v0.7.1</span></h1><div class="muted">Whole-Qur’an Evidence Engine · morphology · Lisan ul Quran · traceable synthesis · web-ready</div></div>
     <div id="badge" class="badge">Corpus: checking…</div>
   </div>
 
@@ -74,7 +74,7 @@ button{border:0;cursor:pointer}.primary{background:var(--accent);font-weight:700
 </div>
 
 <script>
-let corpus=null, translations=null, morphology=null, rows=[], transMap=new Map(), morphByVerse=new Map();
+let corpus=null, translations=null, morphology=null, rows=[], transMap=new Map(), morphByVerse=new Map(), lisanWords=[], lisanMorph=new Map();
 
 function normArabic(s){
  return (s||"").normalize("NFKD")
@@ -121,7 +121,8 @@ async function boot(){
   }
 
   try{
-    const r=await fetch("data/translation_en_pickthall.json",{cache:"no-store"}); translations=await r.json();
+    const r=await fetch("data/translation_en_pickthall.json",{cache:"no-store"}); buildLisanIndexes();
+  translations=await r.json();
     if(!Array.isArray(translations.verses) || translations.verses.length!==6236) throw new Error("translation count");
     translations.verses.forEach(v=>transMap.set(`${v.surah}:${v.ayah}`,v.text));
     document.getElementById("translationState").textContent="English translation loaded";
@@ -179,11 +180,13 @@ function countMorph(kind,val,s,a){
  morphology?.segments?.forEach(x=>{if(x[kind]===val && !(x.s===s&&x.a===a))verses.add(x.s+":"+x.a)});
  return verses.size;
 }
-function quranWords(){
- const map=new Map();
- for(const v of rows){for(const raw of v.arabic.split(/\\s+/)){const n=normArabic(raw).replace(/[^ء-ي]/g,"");if(n.length<2)continue;if(!map.has(n))map.set(n,{word:n,refs:new Set()});map.get(n).refs.add(v.surah+":"+v.ayah)}}
- return [...map.values()];
+function buildLisanIndexes(){
+ const map=new Map();lisanMorph=new Map();
+ for(const v of rows)for(const raw of v.arabic.split(/\\s+/)){const n=normArabic(raw).replace(/[^ء-ي]/g,"");if(n.length<2)continue;if(!map.has(n))map.set(n,{word:n,refs:new Set()});map.get(n).refs.add(v.surah+":"+v.ayah)}
+ for(const segs of morphByVerse.values())for(const x of segs){const form=normArabic(bwArabic(x.form||"")).replace(/[^ء-ي]/g,"");if(!form)continue;if(!lisanMorph.has(form))lisanMorph.set(form,{roots:new Set(),lemmas:new Set()});const m=lisanMorph.get(form);if(x.root)m.roots.add(x.root);if(x.lemma)m.lemmas.add(x.lemma)}
+ lisanWords=[...map.values()];
 }
+function quranWords(){return lisanWords}
 function lisanSkeleton(w){return normArabic(w).replace(/[اوي]/g,"").replace(/(.)\\1+/g,"$1")}
 function bigrams(w){const a=[];for(let i=0;i<w.length-1;i++)a.push(w.slice(i,i+2));return new Set(a)}
 function lisanSimilarity(a,b){
@@ -193,10 +196,8 @@ function lisanSimilarity(a,b){
  return Math.min(100,Math.round((inter/uni)*55+(prefix/Math.max(skA.length,skB.length,1))*30+(a[0]===b[0]?15:0)));
 }
 function lisanMorphRelation(target,candidate){
- const refs=[];for(const [k,segs] of morphByVerse){if(segs.some(x=>normArabic(bwArabic(x.form))===target||normArabic(bwArabic(x.form))===candidate))refs.push(...segs)}
- const rt=new Set(refs.filter(x=>normArabic(bwArabic(x.form))===target).map(x=>x.root).filter(Boolean)),rc=new Set(refs.filter(x=>normArabic(bwArabic(x.form))===candidate).map(x=>x.root).filter(Boolean));
- const lm=new Set(refs.filter(x=>normArabic(bwArabic(x.form))===target).map(x=>x.lemma).filter(Boolean)),lc=new Set(refs.filter(x=>normArabic(bwArabic(x.form))===candidate).map(x=>x.lemma).filter(Boolean));
- return {roots:shared(rt,rc),lemmas:shared(lm,lc)};
+ const a=lisanMorph.get(target)||{roots:new Set(),lemmas:new Set()},b=lisanMorph.get(candidate)||{roots:new Set(),lemmas:new Set()};
+ return {roots:shared(a.roots,b.roots),lemmas:shared(a.lemmas,b.lemmas)};
 }
 function runLisan(target,s,a){
  target=normArabic(target).replace(/[^ء-ي]/g,"");if(target.length<2)return;
