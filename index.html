@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>QuranLens v0.6 — Linguistic Evidence Engine</title>
+<title>QuranLens v0.7 — Linguistic Evidence Engine</title>
 <style>
 :root{--bg:#0b0f14;--panel:#111821;--panel2:#0d141c;--text:#eef4f8;--muted:#95a7b8;--line:#263646;--accent:#d2b36c;--good:#77c59b;--bad:#df7d7d}
 *{box-sizing:border-box}
@@ -28,14 +28,14 @@ button{border:0;cursor:pointer}.primary{background:var(--accent);font-weight:700
 .status{padding:12px;border:1px solid var(--line);background:var(--panel2);border-radius:12px;margin-bottom:10px}
 .step{padding:10px 12px;background:var(--panel2);border-left:3px solid var(--accent);border-radius:8px;margin-top:8px}
 .note{padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#0b1118;margin-top:12px}
-.word-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:8px;margin-top:10px}.word-card{padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}.word-ar{font-family:"Amiri Quran","Amiri",serif;font-size:22px;direction:rtl}.label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.evidence-band{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:12px}.strength{display:inline-block;padding:3px 7px;border:1px solid var(--line);border-radius:999px;font-size:11px;margin-right:5px}.why{font-size:12px;color:var(--muted);margin-top:6px}
+.word-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:8px;margin-top:10px}.word-card{padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}.word-ar{font-family:"Amiri Quran","Amiri",serif;font-size:22px;direction:rtl}.label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.evidence-band{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:12px}.strength{display:inline-block;padding:3px 7px;border:1px solid var(--line);border-radius:999px;font-size:11px;margin-right:5px}.why{font-size:12px;color:var(--muted);margin-top:6px}.lisan-input{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:10px}.lisan-score{font-weight:700;color:var(--accent)}.lisan-word{font-family:"Amiri Quran","Amiri",serif;font-size:25px;direction:rtl}.lisan-group{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
 @media(max-width:820px){.grid{grid-template-columns:1fr}.searchbar{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}}
 </style>
 </head>
 <body>
 <div class="shell">
   <div class="top">
-    <div><h1>QuranLens <span style="color:var(--accent)">v0.6</span></h1><div class="muted">Whole-Qur’an Evidence Engine · context · morphology · parallel candidates · traceable synthesis · web-ready</div></div>
+    <div><h1>QuranLens <span style="color:var(--accent)">v0.7</span></h1><div class="muted">Whole-Qur’an Evidence Engine · morphology · Lisan ul Quran · traceable synthesis · web-ready</div></div>
     <div id="badge" class="badge">Corpus: checking…</div>
   </div>
 
@@ -147,7 +147,7 @@ function render(v, reason){
     ${en?`<div class="en">${esc(en)}</div>`:`<div class="en muted">English translation not installed for this verse.</div>`}
     <div class="meta">
       <a class="ref" onclick="openChapter(${v.surah},${v.ayah})">${key}</a>
-      <span class="match">${esc(reason)}</span><span class="evidence-tools"><button onclick="event.stopPropagation();showContext(${v.surah},${v.ayah})">Context ±2</button><button onclick="event.stopPropagation();showWordAnalysis(${v.surah},${v.ayah})">Word Analysis</button><button onclick="event.stopPropagation();buildEvidencePath(${v.surah},${v.ayah})">Evidence Path</button><button onclick="event.stopPropagation();buildCompleteEvidence(${v.surah},${v.ayah})">Complete Evidence Set</button></span>
+      <span class="match">${esc(reason)}</span><span class="evidence-tools"><button onclick="event.stopPropagation();showContext(${v.surah},${v.ayah})">Context ±2</button><button onclick="event.stopPropagation();showWordAnalysis(${v.surah},${v.ayah})">Word Analysis</button><button onclick="event.stopPropagation();showLisan(${v.surah},${v.ayah})">Lisan ul Quran</button><button onclick="event.stopPropagation();buildEvidencePath(${v.surah},${v.ayah})">Evidence Path</button><button onclick="event.stopPropagation();buildCompleteEvidence(${v.surah},${v.ayah})">Complete Evidence Set</button></span>
     </div>`;
   return d;
 }
@@ -178,6 +178,41 @@ function countMorph(kind,val,s,a){
  const verses=new Set();
  morphology?.segments?.forEach(x=>{if(x[kind]===val && !(x.s===s&&x.a===a))verses.add(x.s+":"+x.a)});
  return verses.size;
+}
+function quranWords(){
+ const map=new Map();
+ for(const v of rows){for(const raw of v.arabic.split(/\\s+/)){const n=normArabic(raw).replace(/[^ء-ي]/g,"");if(n.length<2)continue;if(!map.has(n))map.set(n,{word:n,refs:new Set()});map.get(n).refs.add(v.surah+":"+v.ayah)}}
+ return [...map.values()];
+}
+function lisanSkeleton(w){return normArabic(w).replace(/[اوي]/g,"").replace(/(.)\\1+/g,"$1")}
+function bigrams(w){const a=[];for(let i=0;i<w.length-1;i++)a.push(w.slice(i,i+2));return new Set(a)}
+function lisanSimilarity(a,b){
+ a=normArabic(a).replace(/[^ء-ي]/g,"");b=normArabic(b).replace(/[^ء-ي]/g,"");if(!a||!b)return 0;
+ const A=bigrams(a),B=bigrams(b),inter=[...A].filter(x=>B.has(x)).length,uni=new Set([...A,...B]).size||1;
+ const skA=lisanSkeleton(a),skB=lisanSkeleton(b);let prefix=0;while(prefix<Math.min(skA.length,skB.length)&&skA[prefix]===skB[prefix])prefix++;
+ return Math.min(100,Math.round((inter/uni)*55+(prefix/Math.max(skA.length,skB.length,1))*30+(a[0]===b[0]?15:0)));
+}
+function lisanMorphRelation(target,candidate){
+ const refs=[];for(const [k,segs] of morphByVerse){if(segs.some(x=>normArabic(bwArabic(x.form))===target||normArabic(bwArabic(x.form))===candidate))refs.push(...segs)}
+ const rt=new Set(refs.filter(x=>normArabic(bwArabic(x.form))===target).map(x=>x.root).filter(Boolean)),rc=new Set(refs.filter(x=>normArabic(bwArabic(x.form))===candidate).map(x=>x.root).filter(Boolean));
+ const lm=new Set(refs.filter(x=>normArabic(bwArabic(x.form))===target).map(x=>x.lemma).filter(Boolean)),lc=new Set(refs.filter(x=>normArabic(bwArabic(x.form))===candidate).map(x=>x.lemma).filter(Boolean));
+ return {roots:shared(rt,rc),lemmas:shared(lm,lc)};
+}
+function runLisan(target,s,a){
+ target=normArabic(target).replace(/[^ء-ي]/g,"");if(target.length<2)return;
+ const candidates=quranWords().filter(x=>x.word!==target).map(x=>{const rel=lisanMorphRelation(target,x.word);return {...x,score:lisanSimilarity(target,x.word),rel}}).filter(x=>x.score>=28).sort((x,y)=>y.score-x.score||y.refs.size-x.refs.size).slice(0,40);
+ const box=document.getElementById("evidencePath");
+ box.innerHTML=`<div class="path"><div class="path-title">Lisan ul Quran — ${esc(target)}</div><div class="muted">Experimental Qur'an-internal sound/form connector. Similarity is a retrieval signal based on normalized letter sequence, consonantal skeleton and adjacent-letter overlap. It is <b>not</b> an Arabic root claim, etymology, meaning, or proof of a physical/spiritual vibration effect.</div>
+ <div class="lisan-group"><b>Sound/Form family candidates</b>${candidates.map(x=>`<div class="word-card" style="margin-top:8px"><span class="lisan-word">${esc(x.word)}</span> <span class="lisan-score">${x.score}%</span> <span class="muted">· ${x.refs.size} ayah(s)</span><div class="why">${x.rel.roots.length?"SHARED ROOT: "+x.rel.roots.map(bwArabic).join("، "):"No shared QAC root established"}${x.rel.lemmas.length?" · SHARED LEMMA: "+x.rel.lemmas.map(bwArabic).join("، "):""}</div><button onclick="showLisanRefs('${x.word}')">Show occurrences</button></div>`).join("")||'<div class="muted">No candidates at current threshold.</div>'}</div></div>`;
+}
+function showLisan(s,a){
+ const ws=wordAnalysis(s,a).map(x=>normArabic(x.forms.map(bwArabic).join(""))).filter(x=>x.length>=2),box=document.getElementById("evidencePath");
+ box.innerHTML=`<div class="path"><div class="path-title">Lisan ul Quran — ${s}:${a}</div><div class="muted">Choose a Qur'anic word from this ayah, or type another Arabic Qur'anic form. This compares sound/form structure across the verified corpus while keeping morphology and meaning as separate evidence.</div><div class="path-row" style="margin-top:10px">${ws.map(w=>`<span class="path-chip lisan-word" onclick="runLisan('${w}',${s},${a})">${esc(w)}</span>`).join("")}</div><div class="lisan-input"><input id="lisanQ" dir="rtl" placeholder="مثال: جن"><button class="primary" onclick="runLisan(document.getElementById('lisanQ').value,${s},${a})">Connect</button></div></div>`;box.scrollIntoView({behavior:"smooth",block:"center"});
+}
+function showLisanRefs(word){
+ const hits=rows.filter(v=>v._n.split(/\\s+/).some(x=>x.replace(/[^ء-ي]/g,"")===word)),out=document.getElementById("results");out.innerHTML="";
+ document.getElementById("summary").textContent=`Lisan candidate “${word}”: ${hits.length} ayahs with this normalized form. Review morphology and context before inferring a relationship.`;
+ hits.forEach(v=>out.appendChild(render(v,"LISAN FORM")));
 }
 function wordAnalysis(s,a){
  const segs=morphByVerse.get(s+":"+a)||[], words=new Map();
