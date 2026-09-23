@@ -1,0 +1,12 @@
+QURANLENS EVIDENCE RULES v0.1
+
+1. The Qur'an corpus is the only authoritative evidence source in Qur'an-only mode.
+2. No web result, model memory, tafsir, hadith, scientific article, or user note may silently enter a Qur'an-only conclusion.
+3. Every claim must cite its verse IDs.
+4. Whole-Qur'an retrieval is required before synthesis.
+5. Explicit wording outranks inference.
+6. Exceptions, conditions, duration clauses, and limiting language must be checked before a conclusion.
+7. Repeated or parallel passages must be compared together.
+8. Linguistic certainty markers are evidence features, not automatic conclusions by themselves.
+9. If the evidence is insufficient, output NOT ESTABLISHED.
+10. Sensor readings may describe measurable physical phenomena only; they may not be used to claim detection of the unseen.

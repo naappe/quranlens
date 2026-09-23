@@ -1,0 +1,14 @@
+{
+  "status": "PASS",
+  "source": "Tanzil Quran Text \u2014 Uthmani",
+  "version": "1.1",
+  "surahs": 114,
+  "ayahs": 6236,
+  "source_file_sha256": "b9027e22eb7e69d326f1eb7467fed8b7bc1eccbe1a894887ed2b3feb4ef5fc90",
+  "canonical_verse_stream_sha256": "27572d437ce9aa213e60754936454868dbcfa7b06c2de5f0b07a05e55464dd51",
+  "duplicate_keys": 0,
+  "missing_keys": 0,
+  "per_surah_counts_match": true,
+  "authoritative_text_modified": false,
+  "unicode_non_nfc_verse_count": 5782
+}

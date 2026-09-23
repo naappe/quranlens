@@ -1,0 +1,6 @@
+*.zip
+v03/
+v031/
+patch/
+__pycache__/
+*.pyc
