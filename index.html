@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>QuranLens v0.3</title>
+<title>QuranLens v0.4 — Evidence Path</title>
 <style>
 :root{--bg:#0b0f14;--panel:#111821;--panel2:#0d141c;--text:#eef4f8;--muted:#95a7b8;--line:#263646;--accent:#d2b36c;--good:#77c59b;--bad:#df7d7d}
 *{box-sizing:border-box}
@@ -18,7 +18,9 @@ input,button{font:inherit;border-radius:12px;padding:12px}
 input{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
 button{border:0;cursor:pointer}.primary{background:var(--accent);font-weight:700}
 .verse{padding:15px;border:1px solid var(--line);border-radius:13px;background:var(--panel2);margin-top:11px}
-.ar{font-family:"Traditional Arabic","Noto Naskh Arabic",serif;font-size:25px;line-height:1.95;text-align:right;direction:rtl}
+.ar{font-family:"Amiri Quran","Amiri","Traditional Arabic","Noto Naskh Arabic",serif;font-size:30px;line-height:2.15;text-align:right;direction:rtl;font-weight:400}
+.evidence-tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.evidence-tools button{background:var(--panel2);color:var(--text);border:1px solid var(--line);padding:7px 10px}
+.path{margin-top:16px;padding:14px;border:1px solid var(--line);border-radius:14px;background:#0b1118}.path-title{font-weight:700;color:var(--accent);margin-bottom:8px}.path-row{display:flex;gap:7px;flex-wrap:wrap}.path-chip{padding:6px 9px;border:1px solid var(--line);border-radius:999px;font-size:12px;cursor:pointer}.context{border-left:3px solid var(--accent)}
 .en{font-size:15px;line-height:1.65;margin-top:10px}
 .meta{font-size:12px;color:var(--muted);margin-top:10px}
 .ref{display:inline-block;color:var(--accent);font-weight:700;text-decoration:none;cursor:pointer;margin-right:8px}
@@ -32,7 +34,7 @@ button{border:0;cursor:pointer}.primary{background:var(--accent);font-weight:700
 <body>
 <div class="shell">
   <div class="top">
-    <div><h1>QuranLens <span style="color:var(--accent)">v0.3.1</span></h1><div class="muted">Universal search + Surah navigation</div></div>
+    <div><h1>QuranLens <span style="color:var(--accent)">v0.4</span></h1><div class="muted">Evidence Path · contextual verse linking · Qur’anic Arabic typography</div></div>
     <div id="badge" class="badge">Corpus: checking…</div>
   </div>
 
@@ -46,7 +48,7 @@ button{border:0;cursor:pointer}.primary{background:var(--accent);font-weight:700
         <button class="primary" onclick="runSearch()">Search</button>
       </div>
 
-      <div id="summary" class="muted" style="margin-top:14px"></div>
+      <div id="summary" class="muted" style="margin-top:14px"></div><div id="evidencePath"></div>
       <div id="results"></div>
     </section>
 
@@ -127,11 +129,44 @@ function render(v, reason){
     ${en?`<div class="en">${esc(en)}</div>`:`<div class="en muted">English translation not installed for this verse.</div>`}
     <div class="meta">
       <a class="ref" onclick="openChapter(${v.surah},${v.ayah})">${key}</a>
-      <span class="match">${esc(reason)}</span>
+      <span class="match">${esc(reason)}</span><span class="evidence-tools"><button onclick="event.stopPropagation();showContext(${v.surah},${v.ayah})">Context ±2</button><button onclick="event.stopPropagation();buildEvidencePath(${v.surah},${v.ayah})">Evidence Path</button></span>
     </div>`;
   return d;
 }
 
+
+
+function verseAt(s,a){return rows.find(v=>v.surah===s&&v.ayah===a)}
+function showContext(s,a){
+ const out=document.getElementById("results"); out.innerHTML="";
+ const vs=rows.filter(v=>v.surah===s && v.ayah>=Math.max(1,a-2) && v.ayah<=a+2);
+ document.getElementById("summary").textContent=`Context window around ${s}:${a} — surrounding ayahs are context, not automatic evidence for the same claim.`;
+ vs.forEach(v=>{const el=render(v,v.ayah===a?"FOCUS VERSE":"CONTEXT"); if(v.ayah!==a)el.classList.add("context"); out.appendChild(el)});
+}
+function meaningfulTokens(text){
+ const stop=new Set(["و","في","من","على","الى","إلى","عن","ما","لا","هو","هي","هم","كم","لكم","لهم","به","بها"]);
+ return [...new Set(normArabic(text).split(/\\s+/).filter(x=>x.length>=3&&!stop.has(x)))];
+}
+function buildEvidencePath(s,a){
+ const focus=verseAt(s,a); if(!focus)return;
+ const tokens=meaningfulTokens(focus.arabic);
+ const links=[];
+ for(const token of tokens){
+   const matches=rows.filter(v=>!(v.surah===s&&v.ayah===a)&&v._n.includes(token));
+   if(matches.length) links.push({token,matches:matches.slice(0,12),count:matches.length});
+ }
+ const box=document.getElementById("evidencePath");
+ box.innerHTML=`<div class="path"><div class="path-title">Evidence Path from ${s}:${a}</div>
+ <div class="muted">Connections below are generated only from repeated normalized Arabic surface forms. They are discovery links, not root/lemma claims and not conclusions.</div>
+ <div class="path-row" style="margin-top:10px">${links.map(x=>`<span class="path-chip" onclick="showLinked('${x.token}',${s},${a})">${esc(x.token)} · ${x.count}</span>`).join("")}</div></div>`;
+ box.scrollIntoView({behavior:"smooth",block:"center"});
+}
+function showLinked(token,s,a){
+ const hits=rows.filter(v=>!(v.surah===s&&v.ayah===a)&&v._n.includes(token));
+ const out=document.getElementById("results");out.innerHTML="";
+ document.getElementById("summary").textContent=`Repeated Arabic surface-form link “${token}”: ${hits.length} other ayahs. Review context before drawing a conclusion.`;
+ hits.slice(0,250).forEach(v=>out.appendChild(render(v,"REPEATED ARABIC FORM")));
+}
 
 function openChapter(s,a){
   const out=document.getElementById("results");
@@ -150,7 +185,7 @@ function openChapter(s,a){
 function runSearch(){
   const q=document.getElementById("q").value.trim();
   const out=document.getElementById("results"), summary=document.getElementById("summary");
-  out.innerHTML=""; summary.textContent="";
+  out.innerHTML=""; summary.textContent=""; document.getElementById("evidencePath").innerHTML="";
   if(!rows.length){summary.textContent="Search blocked: verified Arabic corpus not loaded.";return}
   if(!q){summary.textContent="Enter a search term.";return}
 
