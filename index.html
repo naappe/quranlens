@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>QuranLens v0.5 — Linguistic Evidence Engine</title>
+<title>QuranLens v0.6 — Linguistic Evidence Engine</title>
 <style>
 :root{--bg:#0b0f14;--panel:#111821;--panel2:#0d141c;--text:#eef4f8;--muted:#95a7b8;--line:#263646;--accent:#d2b36c;--good:#77c59b;--bad:#df7d7d}
 *{box-sizing:border-box}
@@ -28,13 +28,14 @@ button{border:0;cursor:pointer}.primary{background:var(--accent);font-weight:700
 .status{padding:12px;border:1px solid var(--line);background:var(--panel2);border-radius:12px;margin-bottom:10px}
 .step{padding:10px 12px;background:var(--panel2);border-left:3px solid var(--accent);border-radius:8px;margin-top:8px}
 .note{padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#0b1118;margin-top:12px}
+.word-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:8px;margin-top:10px}.word-card{padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}.word-ar{font-family:"Amiri Quran","Amiri",serif;font-size:22px;direction:rtl}.label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.evidence-band{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:12px}.strength{display:inline-block;padding:3px 7px;border:1px solid var(--line);border-radius:999px;font-size:11px;margin-right:5px}.why{font-size:12px;color:var(--muted);margin-top:6px}
 @media(max-width:820px){.grid{grid-template-columns:1fr}.searchbar{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}}
 </style>
 </head>
 <body>
 <div class="shell">
   <div class="top">
-    <div><h1>QuranLens <span style="color:var(--accent)">v0.5</span></h1><div class="muted">Linguistic Evidence Engine · context · lemma/root · traceable evidence</div></div>
+    <div><h1>QuranLens <span style="color:var(--accent)">v0.6</span></h1><div class="muted">Whole-Qur’an Evidence Engine · context · morphology · parallel candidates · traceable synthesis</div></div>
     <div id="badge" class="badge">Corpus: checking…</div>
   </div>
 
@@ -146,7 +147,7 @@ function render(v, reason){
     ${en?`<div class="en">${esc(en)}</div>`:`<div class="en muted">English translation not installed for this verse.</div>`}
     <div class="meta">
       <a class="ref" onclick="openChapter(${v.surah},${v.ayah})">${key}</a>
-      <span class="match">${esc(reason)}</span><span class="evidence-tools"><button onclick="event.stopPropagation();showContext(${v.surah},${v.ayah})">Context ±2</button><button onclick="event.stopPropagation();buildEvidencePath(${v.surah},${v.ayah})">Evidence Path</button></span>
+      <span class="match">${esc(reason)}</span><span class="evidence-tools"><button onclick="event.stopPropagation();showContext(${v.surah},${v.ayah})">Context ±2</button><button onclick="event.stopPropagation();showWordAnalysis(${v.surah},${v.ayah})">Word Analysis</button><button onclick="event.stopPropagation();buildEvidencePath(${v.surah},${v.ayah})">Evidence Path</button><button onclick="event.stopPropagation();buildCompleteEvidence(${v.surah},${v.ayah})">Complete Evidence Set</button></span>
     </div>`;
   return d;
 }
@@ -178,6 +179,55 @@ function countMorph(kind,val,s,a){
  morphology?.segments?.forEach(x=>{if(x[kind]===val && !(x.s===s&&x.a===a))verses.add(x.s+":"+x.a)});
  return verses.size;
 }
+function wordAnalysis(s,a){
+ const segs=morphByVerse.get(s+":"+a)||[], words=new Map();
+ segs.forEach(x=>{if(!words.has(x.w))words.set(x.w,{w:x.w,forms:[],roots:new Set(),lemmas:new Set(),tags:new Set()});const z=words.get(x.w);z.forms.push(x.form);if(x.root)z.roots.add(x.root);if(x.lemma)z.lemmas.add(x.lemma);if(x.tag)z.tags.add(x.tag)});
+ return [...words.values()];
+}
+function showWordAnalysis(s,a){
+ const focus=verseAt(s,a), box=document.getElementById("evidencePath"); if(!focus)return;
+ if(!morphology){box.innerHTML='<div class="path"><div class="path-title">Word Analysis unavailable</div><div class="muted">QAC morphology is not loaded.</div></div>';return}
+ const ws=wordAnalysis(s,a);
+ box.innerHTML=`<div class="path"><div class="path-title">Word-by-word QAC analysis — ${s}:${a}</div><div class="muted">Each card reports QAC annotations for the corresponding word position. This layer annotates the verified text; it does not replace it.</div><div class="word-grid">${ws.map(x=>`<div class="word-card"><div class="word-ar">${esc(x.forms.map(bwArabic).join(""))}</div><div><span class="label">ROOT</span> ${esc([...x.roots].map(bwArabic).join(" · ")||"—")}</div><div><span class="label">LEMMA</span> ${esc([...x.lemmas].map(bwArabic).join(" · ")||"—")}</div><div><span class="label">TAG</span> ${esc([...x.tags].join(" · "))}</div></div>`).join("")}</div></div>`;
+ box.scrollIntoView({behavior:"smooth",block:"center"});
+}
+function verseMorphSets(s,a){
+ const segs=morphByVerse.get(s+":"+a)||[]; return {roots:new Set(segs.map(x=>x.root).filter(Boolean)),lemmas:new Set(segs.map(x=>x.lemma).filter(Boolean))};
+}
+function shared(a,b){return [...a].filter(x=>b.has(x))}
+function exactPhraseCandidates(s,a){
+ const f=verseAt(s,a), toks=meaningfulTokens(f.arabic).filter(x=>x.length>=4), out=[];
+ for(const v of rows){if(v.surah===s&&v.ayah===a)continue;const m=toks.filter(t=>v._n.includes(t));if(m.length>=2)out.push({v,terms:m})}
+ return out.sort((x,y)=>y.terms.length-x.terms.length);
+}
+function parallelCandidates(s,a){
+ const fs=verseMorphSets(s,a), out=[];
+ for(const v of rows){if(v.surah===s&&v.ayah===a)continue;const ms=verseMorphSets(v.surah,v.ayah);const lem=shared(fs.lemmas,ms.lemmas), roots=shared(fs.roots,ms.roots);const score=lem.length*3+roots.length;if(lem.length>=2||score>=7)out.push({v,lem,roots,score})}
+ return out.sort((x,y)=>y.score-x.score);
+}
+function buildCompleteEvidence(s,a){
+ const focus=verseAt(s,a), box=document.getElementById("evidencePath");if(!focus)return;
+ if(!morphology){buildEvidencePath(s,a);return}
+ const ctx=rows.filter(v=>v.surah===s&&v.ayah>=Math.max(1,a-2)&&v.ayah<=a+2&&v.ayah!==a);
+ const expr=exactPhraseCandidates(s,a).slice(0,20), par=parallelCandidates(s,a).slice(0,20);
+ const unique=new Map(); ctx.forEach(v=>unique.set(v.surah+":"+v.ayah,{v,reasons:["CONTEXT"]}));
+ expr.forEach(x=>{const k=x.v.surah+":"+x.v.ayah;if(!unique.has(k))unique.set(k,{v:x.v,reasons:[]});unique.get(k).reasons.push("SHARED ARABIC FORMS: "+x.terms.join("، "))});
+ par.forEach(x=>{const k=x.v.surah+":"+x.v.ayah;if(!unique.has(k))unique.set(k,{v:x.v,reasons:[]});unique.get(k).reasons.push("MORPHOLOGY OVERLAP: "+x.lem.length+" lemma / "+x.roots.length+" root")});
+ box.innerHTML=`<div class="path"><div class="path-title">Complete Evidence Set — ${s}:${a}</div><div class="muted">Candidate set built from auditable retrieval rules. “Parallel candidate” means linguistic overlap worth reviewing; it is not a claim that two ayahs have the same meaning.</div>
+ <div class="evidence-band"><b>1 · FOCUS</b><div class="why">${s}:${a} — direct selected ayah.</div></div>
+ <div class="evidence-band"><b>2 · CONTEXT</b><div class="why">${ctx.map(v=>v.surah+":"+v.ayah).join(" · ")}</div></div>
+ <div class="evidence-band"><b>3 · RELATED EXPRESSIONS</b><div class="why">${expr.length} strongest candidates using 2+ normalized Arabic content forms.</div></div>
+ <div class="evidence-band"><b>4 · PARALLEL CANDIDATES</b><div class="why">${par.length} strongest candidates ranked by shared QAC lemma/root annotations.</div></div>
+ <div class="evidence-band"><b>5 · DEDUPLICATED REVIEW SET</b><div class="why">${unique.size} ayahs. Every inclusion retains its retrieval reason.</div></div>
+ <div class="evidence-band"><b>6 · TRACEABLE SYNTHESIS</b><div class="why"><span class="strength">EXPLICIT</span> reserved for wording directly present in an ayah. <span class="strength">LINGUISTIC LINK</span> root/lemma/expression relation only. <span class="strength">CONTEXT</span> neighboring passage. <span class="strength">INFERRED</span> requires a stated reasoning step. QuranLens does not silently promote a linguistic match into a Qur’anic conclusion.</div></div>
+ <div style="margin-top:12px"><button class="primary" onclick="showEvidenceReview(${s},${a})">Review ${unique.size} evidence candidates</button></div></div>`;
+ window._qlEvidence={s,a,items:[...unique.values()]};box.scrollIntoView({behavior:"smooth",block:"center"});
+}
+function showEvidenceReview(s,a){
+ if(!window._qlEvidence||window._qlEvidence.s!==s||window._qlEvidence.a!==a){buildCompleteEvidence(s,a);return}
+ const out=document.getElementById("results");out.innerHTML="";document.getElementById("summary").textContent=`Evidence review for ${s}:${a} — ${window._qlEvidence.items.length} deduplicated candidates. Inclusion reason is shown on every card.`;
+ window._qlEvidence.items.forEach(x=>out.appendChild(render(x.v,x.reasons.join(" • "))));
+}
 function buildEvidencePath(s,a){
  const focus=verseAt(s,a); if(!focus)return;
  const box=document.getElementById("evidencePath");
@@ -189,7 +239,7 @@ function buildEvidencePath(s,a){
    <div class="muted">QAC v0.4 morphology is a separate annotation layer. ROOT and LEMMA links below are QAC annotations, not spelling guesses. Counts exclude the focus ayah.</div>
    <div style="margin-top:12px"><b>ROOT</b><div class="path-row">${roots.map(x=>`<span class="path-chip" onclick="showMorphLinked('root','${x.v}',${s},${a})">${esc(bwArabic(x.v)||x.v)} · ${x.n}</span>`).join("")||'<span class="muted">No root links</span>'}</div></div>
    <div style="margin-top:12px"><b>LEMMA</b><div class="path-row">${lemmas.map(x=>`<span class="path-chip" onclick="showMorphLinked('lemma','${x.v}',${s},${a})">${esc(bwArabic(x.v)||x.v)} · ${x.n}</span>`).join("")||'<span class="muted">No lemma links</span>'}</div></div>
-   <div class="muted" style="margin-top:12px">Next reasoning stages remain separate: CONTEXT → PARALLEL PASSAGE → COMPLETE EVIDENCE SET → SYNTHESIS.</div></div>`;
+   <div class="muted" style="margin-top:12px">Use Complete Evidence Set to combine CONTEXT → RELATED EXPRESSIONS → PARALLEL CANDIDATES → DEDUPLICATED REVIEW → TRACEABLE SYNTHESIS.</div></div>`;
  } else {
    const tokens=meaningfulTokens(focus.arabic),links=[];
    for(const token of tokens){const matches=rows.filter(v=>!(v.surah===s&&v.ayah===a)&&v._n.includes(token));if(matches.length)links.push({token,count:matches.length})}
